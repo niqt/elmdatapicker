@@ -1,4 +1,4 @@
-# my new project
+# Raw DataPicker
 > 🌳  built with [elm-spa](https://elm-spa.dev)
 
 ## dependencies
