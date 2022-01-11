@@ -1,8 +1,11 @@
 module Pages.Example exposing (Model, Msg, page)
 
 import Date exposing (Date, Interval(..), Month, Unit(..))
-import Element exposing (Element, alignLeft, alignRight, fill, fillPortion, px, spacing)
+import Element exposing (Element, alignLeft, alignRight, fill, fillPortion, padding, px, rgb, spacing)
+import Element.Background as Background
 import Element.Border as Border
+import Element.Events
+import Element.Font as Font
 import Element.Input as Input
 import Gen.Params.Example exposing (Params)
 import Page
@@ -26,7 +29,9 @@ page shared req =
 
 
 type alias Model =
-    { today : Date }
+    { today : Date
+    , selected : Maybe Date
+    }
 
 
 type alias Properties =
@@ -51,7 +56,7 @@ type alias DayItem =
 
 init : Model
 init =
-    { today = Date.fromCalendarDate 2022 Feb 10 }
+    { today = Date.fromCalendarDate 2022 Feb 11, selected = Just <| Date.fromCalendarDate 2022 Feb 10 }
 
 
 
@@ -82,7 +87,7 @@ update msg model =
             { model | today = next }
 
         Selected date ->
-            model
+            { model | selected = Just date }
 
 
 
@@ -98,11 +103,6 @@ view model =
             numberOfDays =
                 daysOfMonth (Date.month model.today) (Date.year model.today)
 
-            days =
-                daysFromPreviousMonth model.today
-                    ++ List.range 1 numberOfDays
-                    ++ daysFromNextMonth (List.length (daysFromPreviousMonth model.today) + numberOfDays)
-
             fromPreviousMonth =
                 dateDaysFromPreviousMonth model.today
 
@@ -113,15 +113,13 @@ view model =
         in
         Element.column []
             [ header model.today
-
-            --,drawMatrix days
-            , drawDateMatrix dates
+            , drawDateMatrix dates model.selected model.today
             ]
     }
 
 
-drawMatrix : List Int -> Element Msg
-drawMatrix matrix =
+drawDateMatrix : List DayItem -> Maybe Date -> Date -> Element Msg
+drawDateMatrix matrix selected today =
     let
         ( first, rest ) =
             split 7 matrix
@@ -139,62 +137,69 @@ drawMatrix matrix =
             split 7 fourthRest
     in
     Element.column [ spacing 2, Border.width 1, Element.width (px 600) ]
-        [ Element.row [ spacing 2, Element.centerX, Border.width 1, Element.width fill ] (List.map drawCol weekHeader)
-        , Element.row [ spacing 2, Element.centerX, Border.width 1, Element.width fill ] (List.map drawItem first)
-        , Element.row [ spacing 2, Element.centerX, Border.width 1, Element.width fill ] (List.map drawItem second)
-        , Element.row [ spacing 2, Element.centerX, Border.width 1, Element.width fill ] (List.map drawItem third)
-        , Element.row [ spacing 2, Element.centerX, Border.width 1, Element.width fill ] (List.map drawItem fourth)
-        , Element.row [ spacing 2, Element.centerX, Border.width 1, Element.width fill ] (List.map drawItem fifth)
-        , Element.row [ spacing 2, Element.centerX, Border.width 1, Element.width fill ] (List.map drawItem sixth)
+        [ Element.row [ spacing 2, Element.centerX, Element.width fill ] (List.map drawCol weekHeader)
+        , Element.row [ spacing 2, Element.centerX, Element.width fill ] <| List.map (drawDate selected today) first
+        , Element.row [ spacing 2, Element.centerX, Element.width fill ] <| List.map (drawDate selected today) second
+        , Element.row [ spacing 2, Element.centerX, Element.width fill ] <| List.map (drawDate selected today) third
+        , Element.row [ spacing 2, Element.centerX, Element.width fill ] <| List.map (drawDate selected today) fourth
+        , Element.row [ spacing 2, Element.centerX, Element.width fill ] <| List.map (drawDate selected today) fifth
+        , Element.row [ spacing 2, Element.centerX, Element.width fill ] <| List.map (drawDate selected today) sixth
         ]
 
 
-drawDateMatrix : List Date -> Element Msg
-drawDateMatrix matrix =
+drawDate : Maybe Date -> Date -> DayItem -> Element Msg
+drawDate selected today day =
     let
-        ( first, rest ) =
-            split 7 matrix
+        isSelected =
+            case selected of
+                Just date ->
+                    date == day.date
 
-        ( second, secondRest ) =
-            split 7 rest
-
-        ( third, thirdRest ) =
-            split 7 secondRest
-
-        ( fourth, fourthRest ) =
-            split 7 thirdRest
-
-        ( fifth, sixth ) =
-            split 7 fourthRest
+                Nothing ->
+                    False
     in
-    Element.column [ spacing 2, Border.width 1, Element.width (px 600) ]
-        [ Element.row [ spacing 2, Element.centerX, Border.width 1, Element.width fill ] (List.map drawCol weekHeader)
-        , Element.row [ spacing 2, Element.centerX, Border.width 1, Element.width fill ] (List.map drawDate first)
-        , Element.row [ spacing 2, Element.centerX, Border.width 1, Element.width fill ] (List.map drawDate second)
-        , Element.row [ spacing 2, Element.centerX, Border.width 1, Element.width fill ] (List.map drawDate third)
-        , Element.row [ spacing 2, Element.centerX, Border.width 1, Element.width fill ] (List.map drawDate fourth)
-        , Element.row [ spacing 2, Element.centerX, Border.width 1, Element.width fill ] (List.map drawDate fifth)
-        , Element.row [ spacing 2, Element.centerX, Border.width 1, Element.width fill ] (List.map drawDate sixth)
+    Element.el
+        [ Element.width (fillPortion 7)
+        , Element.centerX
+        , if isSelected then
+            Background.color (Element.rgb255 20 100 240)
+
+          else
+            Background.color (Element.rgb255 255 255 255)
+        , Element.mouseOver
+            [ Background.color (Element.rgb255 130 130 130)
+            ]
+        , Element.Events.onClick (Selected day.date)
+        , if day.date == today then
+            Element.inFront (Element.el [ Element.centerX, Element.alignBottom ] (Element.text "."))
+
+          else
+            Element.inFront Element.none
         ]
+    <|
+        Element.column
+            [ Element.height (px 32)
+            , Element.centerX
+            , Font.color <|
+                if day.isCurrentMonth then
+                    Element.rgb255 0 0 0
 
-
-drawDate : Date -> Element Msg
-drawDate day =
-    Element.el [ Element.width (fillPortion 7), Element.centerX, Element.centerY, Border.width 1 ] <|
-        Element.el [ Element.centerX ]
-            (Element.text <| String.fromInt (Date.day day))
-
-
-drawItem : Int -> Element Msg
-drawItem day =
-    Element.el [ Element.width (fillPortion 7), Element.centerX, Element.centerY, Border.width 1 ] <|
-        Element.el [ Element.centerX ]
-            (Element.text <| String.fromInt day)
+                else
+                    Element.rgb255 169 169 169
+            , Font.size 16
+            ]
+            [ Element.el
+                [ Element.centerY
+                ]
+              <|
+                Element.text <|
+                    String.fromInt (Date.day day.date)
+            ]
 
 
 drawCol : String -> Element Msg
 drawCol day =
-    Element.el [ Element.width (fillPortion 7), Element.centerX, Element.centerY, Border.width 1 ] <|
+    Element.el [ Element.width (fillPortion 7), Element.centerX, Element.centerY ] <|
         Element.el [ Element.centerX ]
             (Element.text <| day)
 
@@ -203,7 +208,7 @@ header : Date -> Element Msg
 header date =
     let
         label =
-            Date.format "MMMM" date ++ ", " ++ (String.fromInt <| Date.year date)
+            Date.format "MMMM" date ++ " " ++ (String.fromInt <| Date.year date)
     in
     Element.row [ Element.width fill ]
         [ Input.button
@@ -244,27 +249,7 @@ weekDayOfFirstDay date =
     Date.weekdayNumber firstDay
 
 
-daysFromPreviousMonth : Date -> List Int
-daysFromPreviousMonth date =
-    let
-        firstDayMonth =
-            weekDayOfFirstDay date
-    in
-    if firstDayMonth == 1 then
-        []
-
-    else
-        let
-            previousMonth =
-                Date.add Months -1 date
-
-            previousMonthDays =
-                daysOfMonth (Date.month previousMonth) (Date.year previousMonth)
-        in
-        List.range (previousMonthDays - firstDayMonth + 2) previousMonthDays
-
-
-dateDaysFromPreviousMonth : Date -> List Date
+dateDaysFromPreviousMonth : Date -> List DayItem
 dateDaysFromPreviousMonth date =
     let
         firstWeekDayMonth =
@@ -289,24 +274,20 @@ dateDaysFromPreviousMonth date =
 
             until =
                 Date.add Days -1 first
+
+            dates =
+                Date.range Day 1 start until ++ List.singleton until
         in
-        Date.range Day 1 start until ++ List.singleton until
+        List.map
+            (\day ->
+                { date = day
+                , isCurrentMonth = False
+                }
+            )
+            dates
 
 
-daysFromNextMonth : Int -> List Int
-daysFromNextMonth currentSize =
-    if currentSize == daysInTheView then
-        []
-
-    else
-        let
-            daysToAdd =
-                daysInTheView - currentSize
-        in
-        List.range 1 daysToAdd
-
-
-dateDaysFromNextMonth : Int -> Date -> List Date
+dateDaysFromNextMonth : Int -> Date -> List DayItem
 dateDaysFromNextMonth currentSize dayInCurrentMonth =
     if currentSize == daysInTheView then
         []
@@ -321,11 +302,20 @@ dateDaysFromNextMonth currentSize dayInCurrentMonth =
 
             until =
                 Date.fromCalendarDate (Date.year nextMonth) (Date.month nextMonth) (daysInTheView - currentSize)
+
+            dates =
+                Date.range Day 1 start until ++ List.singleton until
         in
-        Date.range Day 1 start until ++ List.singleton until
+        List.map
+            (\day ->
+                { date = day
+                , isCurrentMonth = False
+                }
+            )
+            dates
 
 
-datesOfTheMonth : Date -> List Date
+datesOfTheMonth : Date -> List DayItem
 datesOfTheMonth day =
     let
         year =
@@ -339,8 +329,17 @@ datesOfTheMonth day =
 
         until =
             Date.fromCalendarDate year month <| daysOfMonth month year
+
+        dates =
+            Date.range Day 1 start until ++ [ Date.fromCalendarDate year month <| daysOfMonth month year ]
     in
-    Date.range Day 1 start until ++ [ Date.fromCalendarDate year month <| daysOfMonth month year ]
+    List.map
+        (\date ->
+            { date = date
+            , isCurrentMonth = True
+            }
+        )
+        dates
 
 
 isLeapYear : Int -> Bool
